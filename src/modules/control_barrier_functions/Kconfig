@@ -1,0 +1,12 @@
+menuconfig MODULES_CONTROL_BARRIER_FUNCTIONS
+	bool "control_barrier_functions"
+	default n
+	---help---
+		Enable support for control_barrier_functions"
+
+menuconfig USER_CONTROL_BARRIER_FUNCTIONS
+	bool "control_barrier_functions running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_CONTROL_BARRIER_FUNCTIONS
+	---help---
+		Put control_barrier_functions in userspace memory
