@@ -38,5 +38,11 @@ px4_add_module(
 	SRCS
 		mc_nn_control.cpp
 		mc_nn_control.hpp
+		simple_net.cpp
+		simple_net.hpp
 	DEPENDS
+		tflite
 )
+target_link_libraries(mc_nn_control PRIVATE tflite)
+target_include_directories(mc_nn_control PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/lib/tflite)

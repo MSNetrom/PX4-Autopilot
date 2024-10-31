@@ -41,5 +41,12 @@
 
 #include <px4_platform_common/log.h>
 
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+
+// Include model
+#include "simple_net.hpp"
+
 
 
