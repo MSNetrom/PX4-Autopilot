@@ -41,66 +41,47 @@
 
 extern "C" __EXPORT int control_barrier_functions_main(int argc, char *argv[])
 {
-	PX4_INFO("Hello from control_barrier_functions_main");
+	// We assume that all states and position are given in the same frame, and that the z-axis is pointing upwards
+	// from the ground.
+	// The output of the control barrier function is in the frame of the input states.
 
-	int sensor_sub_fd = orb_subscribe(ORB_ID(sensor_combined));
-	int local_position_subscribe_file_descriptor = orb_subscribe(ORB_ID(vehicle_local_position));
+	// Define the position of the obstacle. (We assume that these are given to us somehow)
+	math::Vector3f quad_pos(1.0f, 2.0f, 3.0f);
+	math::Vector3f quad_vel(3.0f, 4.0f, 5.0f);
+	math::Vector3f obstacle_pos(1.0f, 2.0f, 3.0f);
+	float obstacle_radius = 5.0f;
 
-	px4_pollfd_struct_t fds[] = {
-		{ .fd = sensor_sub_fd,   .events = POLLIN },
-		{ .fd = local_position_subscribe_file_descriptor,   .events = POLLIN },
-	};
+	// We also assumed that a wished control input u_ref (acceleration in the given frame) is given to us
+	math::Vector3f u_ref(1.0f, 2.0f, 3.0f);
 
-	/* advertise attitude topic */
-	struct vehicle_attitude_s att;
-	memset(&att, 0, sizeof(att));
-	orb_advert_t att_pub_filedescr = orb_advertise(ORB_ID(vehicle_attitude), &att);
+	// We assume that the tuning constants p1 and p2 are given to us. These decide how fast the dynamics are allowed to be.
+	// These must be positive.
+	float p1 = 5.0f;
+	float p2 = 4.0f;
 
-	int error_counter = 0;
-	for (int i = 0; i < 10000; i++) {
+	// We will model the obstacle as a cylinder and effectively ignore the z-coordinate
+	math::Vector2f quad_pos_2d = quad_pos.xy();
+	math::Vector2f quad_vel_2d = quad_vel.xy();
+    	math::Vector2f obstacle_pos_2d = obstacle_pos.xy();
+	math::Vector2f u_ref_2d = u_ref.xy();
 
-	/* wait for sensor update of 2 file descriptor for 1000 ms (1 second) */
-	int poll_ret = px4_poll(fds, 2, 3000);
+	// Let's calculate some helper variables
+	math::Vector2f diff = quad_pos_2d - obstacle_pos_2d;
+	float h = diff.dot(diff) - obstacle_radius * obstacle_radius;
+	float h_dot = 2.0f * diff.dot(quad_vel_2d);
+	float Lf_h_dot = 2.0f * quad_vel_2d.dot(quad_vel_2d)
+	math::Vector2f Lg_h_dot = 2.0f * diff
 
-	/* handle the poll result */
-	if (poll_ret == 0) {
-		/* this means none of our providers is giving us data */
-		PX4_ERR("Got no data within a second");
+	// Let's define alpha and beta, for the optimization constraint a^Tu >= b
+	math::Vector2f alpha = Lg_h_dot
+	float beta = -(Lf_h_dot + (p1 + p2) * h_dot + p1 * p2 * h)
 
-	} else if (poll_ret < 0) {
-		/* this is seriously bad - should be an emergency */
-		if (error_counter < 10 || error_counter % 50 == 0) {
-			/* use a counter to prevent flooding (and slowing us down) */
-			PX4_ERR("ERROR return value from poll(): %d", poll_ret);
-		}
+	// Let's solve this analytically
+	float k = alpha.dot(u_ref_2d) / (alpha.dot(alpha))
+	math::Vector2f u_safe_2d = max(beta / alpha.dot(alpha), k) * alpha + u_ref_2d - k * alpha
+	math::Vector3f u_safe(u_safe_2d.x, u_safe_2d.y, u_ref.z)
 
-		error_counter++;
+	// Now we can send u_safe to pixhawk somehow
 
-	} else {
-
-		if (fds[1].revents & POLLIN) {
-			/* obtained data for the second file descriptor */
-			struct vehicle_local_position_s local_position;
-			/* copy sensors raw data into local buffer */
-			orb_copy(ORB_ID(vehicle_local_position), local_position_subscribe_file_descriptor, &local_position);
-			//PX4_INFO("Local position setpoint:\t%8.4f",
-						//(double)local_position.z);
-		}
-		if (fds[0].revents & POLLIN) {
-			/* obtained data for the first file descriptor */
-			struct sensor_combined_s raw;
-			/* copy sensors raw data into local buffer */
-			orb_copy(ORB_ID(sensor_combined), sensor_sub_fd, &raw);
-			//PX4_INFO("Accelerometer:\t%8.4f",
-						//(double)raw.accelerometer_m_s2[0]);
-		}
-
-	}
-	att.q[0] = 0.5;
-	att.q[1] = 0.0;
-	att.q[2] = 0.3;
-	orb_publish(ORB_ID(vehicle_attitude), att_pub_filedescr, &att);
-
-}
 	return 0;
 }

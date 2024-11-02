@@ -46,5 +46,5 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_attitude.h>
-
+#include <mathlib/mathlib.h>
 
